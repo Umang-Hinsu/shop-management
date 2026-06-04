@@ -1,0 +1,167 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Product / Inventory ────────────────────────────────────────────────────
+
+model ProductBatch {
+  id           Int      @id @default(autoincrement())
+  batchId      String   @unique
+  name         String
+  costPrice    Float
+  sellingPrice Float
+  qty          Int      @default(0)
+  minStock     Int      @default(5)
+  receivedDate DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  billItems     BillItem[]
+  purchaseItems PurchaseItem[]
+}
+
+// ─── Customers ───────────────────────────────────────────────────────────────
+
+model Customer {
+  id          Int      @id @default(autoincrement())
+  name        String
+  phone       String?  @unique
+  email       String?
+  totalCredit Float    @default(0)
+  totalPaid   Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bills Bill[]
+}
+
+// ─── Bills / Invoices ─────────────────────────────────────────────────────────
+
+model Bill {
+  id           String   @id          // e.g. INV-001
+  customerId   Int?
+  customerName String
+  billType     BillType @default(INVOICE)
+  subtotal     Float
+  discount     Float    @default(0)
+  grandTotal   Float
+  paid         Float    @default(0)
+  status       BillStatus @default(UNPAID)
+  date         DateTime
+  note         String?
+  daySeq       Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customer  Customer?     @relation(fields: [customerId], references: [id])
+  items     BillItem[]
+  payments  BillPayment[]
+}
+
+model BillItem {
+  id        Int    @id @default(autoincrement())
+  billId    String
+  productId Int?
+  batchId   String
+  name      String
+  price     Float
+  qty       Int
+  total     Float
+
+  bill    Bill          @relation(fields: [billId], references: [id], onDelete: Cascade)
+  product ProductBatch? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+model BillPayment {
+  id     Int      @id @default(autoincrement())
+  billId String
+  amount Float
+  date   DateTime
+  note   String?
+
+  bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
+}
+
+// ─── Suppliers ───────────────────────────────────────────────────────────────
+
+model Supplier {
+  id       Int    @id @default(autoincrement())
+  name     String
+  shopName String
+  phone    String @unique
+  address  String?
+  email    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases Purchase[]
+}
+
+// ─── Purchases / Purchase Orders ──────────────────────────────────────────────
+
+model Purchase {
+  id           String         @id          // e.g. PO-001
+  supplierId   Int
+  supplierName String
+  date         DateTime
+  orderNo      String
+  total        Float
+  paid         Float          @default(0)
+  status       PurchaseStatus @default(REMAINING)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  supplier  Supplier        @relation(fields: [supplierId], references: [id])
+  items     PurchaseItem[]
+  payments  PurchasePayment[]
+}
+
+model PurchaseItem {
+  id            Int    @id @default(autoincrement())
+  purchaseId    String
+  productId     Int?
+  batchId       String
+  name          String
+  qtyReceived   Int
+  purchasePrice Float
+
+  purchase Purchase      @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product  ProductBatch? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+model PurchasePayment {
+  id         Int      @id @default(autoincrement())
+  purchaseId String
+  amount     Float
+  date       DateTime
+  note       String?
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum BillType {
+  INVOICE
+  CREDIT_MEMO
+  DEBIT_MEMO
+}
+
+enum BillStatus {
+  PAID
+  PARTIAL
+  UNPAID
+}
+
+enum PurchaseStatus {
+  PAID
+  REMAINING
+}
