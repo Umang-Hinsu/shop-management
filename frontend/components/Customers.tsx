@@ -5,6 +5,7 @@ import { useApp, fmt, Customer, Bill, getSanitizedInvoiceTitle } from "@/lib/sto
 import { Badge, Modal, StatCard, Btn, FormField, inputCls } from "@/components/ui-shared";
 import { X, Search } from "lucide-react";
 import InvoiceView from "@/components/InvoiceView";
+import EditBillModal from "@/components/EditBillModal";
 
 const BILL_TYPE_LABELS: Record<string, string> = {
   INVOICE: "Invoice",
@@ -99,6 +100,7 @@ function CustomerDetail({ customerId, onBack, onDeleted }: { customerId: number;
   const [printingBill, setPrintingBill] = useState<Bill | null>(null);
   const [confirmDeleteBill, setConfirmDeleteBill] = useState<Bill | null>(null);
   const [deletingBill, setDeletingBill] = useState(false);
+  const [editBill, setEditBill] = useState<Bill | null>(null);
 
   const handleDeleteBill = async () => {
     if (!confirmDeleteBill) return;
@@ -213,6 +215,7 @@ function CustomerDetail({ customerId, onBack, onDeleted }: { customerId: number;
                         <td className="px-3 py-2.5">
                           <div className="flex gap-1.5 items-center">
                             <Btn className="!px-2 !py-1 !text-xs whitespace-nowrap" onClick={() => setPrintingBill(b)}>🖨️ Print</Btn>
+                            <Btn variant="default" className="!px-2 !py-1 !text-xs whitespace-nowrap" onClick={() => setEditBill(b)}>📝 Edit</Btn>
                             {bal > 0 && (
                               <Btn variant="success" onClick={() => setPayBill(b)} className="!px-2 !py-1 !text-xs whitespace-nowrap">Pay</Btn>
                             )}
@@ -260,6 +263,7 @@ function CustomerDetail({ customerId, onBack, onDeleted }: { customerId: number;
         />
       )}
       {payBill && <PaymentModal bill={payBill} onClose={() => setPayBill(null)} />}
+      {editBill && <EditBillModal bill={editBill} onClose={() => setEditBill(null)} />}
 
       {/* Delete confirmation dialog */}
       {confirmDelete && (

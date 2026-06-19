@@ -154,6 +154,7 @@ type AppCtx = {
     daySeq?: number;
   }) => Promise<string>;
   addBillPayment: (billId: string, amount: number, date: string, note?: string) => Promise<void>;
+  updateBill: (id: string, bill: any) => Promise<void>;
   deleteBill: (id: string) => Promise<void>;
   // Suppliers
   addSupplier: (s: Omit<Supplier, "id">) => Promise<number>;
@@ -265,6 +266,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     await fetchAll();
   };
+  const updateBill = async (id: string, bill: any) => {
+    await apiFetch(`/api/bills/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(bill),
+    });
+    await fetchAll();
+  };
+
   const deleteBill = async (id: string) => {
     await apiFetch(`/api/bills/${id}`, { method: "DELETE" });
     await fetchAll();
@@ -312,7 +321,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loading, error, refetch: fetchAll,
         addProductBatch, updateProductBatch, deleteProductBatch,
         addCustomer, updateCustomer, deleteCustomer,
-        addBill, addBillPayment, deleteBill,
+        addBill, addBillPayment, updateBill, deleteBill,
         addSupplier, updateSupplier, deleteSupplier,
         addPurchase, addPurchasePayment,
       }}

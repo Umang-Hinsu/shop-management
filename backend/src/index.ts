@@ -38,9 +38,11 @@ app.use(errorHandler);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
-const PORT = Number(process.env.PORT ?? 4000);
-app.listen(PORT, '192.168.19.217', () => {
-  console.log(`🚀 Shop API running on http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  const PORT = Number(process.env.PORT ?? 4000);
+  app.listen(PORT, () => {
+    console.log(`🚀 Shop API running on http://localhost:${PORT}`);
+  });
+}
 
 export default app;

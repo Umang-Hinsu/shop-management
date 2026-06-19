@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useApp, fmt, Bill } from "@/lib/store";
 import { Badge, Btn, FormField, Modal, inputCls, selectCls } from "@/components/ui-shared";
-import { Search, Eye, Printer, Calendar, RefreshCw } from "lucide-react";
+import { Search, Eye, Printer, Calendar, RefreshCw, Edit } from "lucide-react";
 import InvoiceView from "@/components/InvoiceView";
+import EditBillModal from "@/components/EditBillModal";
  
 const BILL_TYPE_LABELS: Record<string, string> = {
   INVOICE: "Invoice",
@@ -21,6 +22,7 @@ const BILL_TYPE_COLORS: Record<string, "blue" | "red" | "amber" | "gray"> = {
 export default function History() {
   const { bills, addBillPayment, loading } = useApp();
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
+  const [editBillId, setEditBillId] = useState<string | null>(null);
  
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -260,12 +262,20 @@ export default function History() {
                         </Badge>
                       </td>
                       <td className="px-5 py-3 text-center">
-                        <Btn
-                          onClick={() => handleOpenBill(b.id)}
-                          className="!py-1.5 !px-2.5 text-xs text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100"
-                        >
-                          <Eye className="w-3.5 h-3.5 inline mr-1" /> View
-                        </Btn>
+                        <div className="flex gap-1.5 justify-center">
+                          <Btn
+                            onClick={() => handleOpenBill(b.id)}
+                            className="!py-1.5 !px-2.5 text-xs text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100"
+                          >
+                            <Eye className="w-3.5 h-3.5 inline mr-1" /> View
+                          </Btn>
+                          <Btn
+                            onClick={() => setEditBillId(b.id)}
+                            className="!py-1.5 !px-2.5 text-xs text-amber-600 bg-amber-50 border-amber-100 hover:bg-amber-100"
+                          >
+                            <Edit className="w-3.5 h-3.5 inline mr-1" /> Edit
+                          </Btn>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -277,6 +287,13 @@ export default function History() {
       </div>
  
       {/* Detail Modal */}
+      {editBillId && (
+        <EditBillModal
+          bill={bills.find((b) => b.id === editBillId)!}
+          onClose={() => setEditBillId(null)}
+        />
+      )}
+
       {selectedBill && (
         <Modal
           title={`Invoice Details: ${selectedBill.id}`}

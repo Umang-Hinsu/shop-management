@@ -320,3 +320,129 @@ billRouter.delete("/:id", async (req, res, next) => {
     next(err);
   }
 });
+
+// ── PATCH /bills/:id ──────────────────────────────────────────────────────────
+
+billRouter.patch("/:id", async (req, res, next) => {
+  try {
+    const billId = req.params.id;
+    const data = createBillSchema.parse(req.body);
+    const newStatus = computeStatus(data.paid, data.grandTotal);
+
+    const updatedBill = await prisma.$transaction(async (tx) => {
+      // 1. Fetch the existing bill including items
+      const oldBill = await tx.bill.findUnique({
+        where: { id: billId },
+        include: { items: true },
+      });
+      if (!oldBill) throw new AppError(404, "Bill not found");
+
+      // 2. Revert stock changes from the old bill (batch query product batches first)
+      const oldProductIds = oldBill.items.map(i => i.productId).filter(Boolean) as number[];
+      const existingOldProducts = await tx.productBatch.findMany({
+        where: { id: { in: oldProductIds } }
+      });
+      const oldProductIdsSet = new Set(existingOldProducts.map(p => p.id));
+
+      for (const item of oldBill.items) {
+        if (item.productId && oldProductIdsSet.has(item.productId)) {
+          await tx.productBatch.update({
+            where: { id: item.productId },
+            data: { qty: { increment: item.qty } },
+          });
+        }
+      }
+
+      // 3. Revert customer ledger increments of the old bill
+      if (oldBill.customerId) {
+        const oldCustomerExists = await tx.customer.findUnique({ where: { id: oldBill.customerId } });
+        if (oldCustomerExists) {
+          await tx.customer.update({
+            where: { id: oldBill.customerId },
+            data: {
+              totalCredit: { decrement: oldBill.grandTotal },
+              totalPaid:   { decrement: oldBill.paid },
+            },
+          });
+        }
+      }
+
+      // 4. Validate and apply the new items stock deduction (batch query new products first)
+      const newProductIds = data.items.map(i => i.productId);
+      const existingNewProducts = await tx.productBatch.findMany({
+        where: { id: { in: newProductIds } }
+      });
+      const newProductsMap = new Map(existingNewProducts.map(p => [p.id, p]));
+
+      for (const item of data.items) {
+        const product = newProductsMap.get(item.productId);
+        if (!product) throw new AppError(404, `Product ${item.productId} not found`);
+        if (product.qty < item.qty) {
+          throw new AppError(400, `Insufficient stock for "${product.name}". Available: ${product.qty}`);
+        }
+        await tx.productBatch.update({
+          where: { id: item.productId },
+          data: { qty: { decrement: item.qty } },
+        });
+      }
+
+      // 5. Update new/existing customer ledger
+      if (data.customerId) {
+        const newCustomerExists = await tx.customer.findUnique({ where: { id: data.customerId } });
+        if (!newCustomerExists) throw new AppError(404, "Customer not found");
+        await tx.customer.update({
+          where: { id: data.customerId },
+          data: {
+            totalCredit: { increment: data.grandTotal },
+            totalPaid:   { increment: data.paid },
+          },
+        });
+      }
+
+      // 6. Delete old items and old payments
+      await tx.billItem.deleteMany({ where: { billId } });
+      await tx.billPayment.deleteMany({ where: { billId } });
+
+      // 7. Update bill record, and create new items and payments
+      const updated = await tx.bill.update({
+        where: { id: billId },
+        data: {
+          customerId:   data.customerId ?? null,
+          customerName: data.customerName,
+          billType:     data.billType,
+          subtotal:     data.subtotal,
+          discount:     data.discount,
+          grandTotal:   data.grandTotal,
+          paid:         data.paid,
+          status:       newStatus,
+          date:         new Date(data.date),
+          note:         data.note,
+          items: {
+            create: data.items.map((item) => ({
+              productId: item.productId,
+              batchId:   item.batchId,
+              name:      item.name,
+              price:     item.price,
+              qty:       item.qty,
+              total:     item.total,
+            })),
+          },
+          payments: data.paid > 0
+            ? { create: [{ amount: data.paid, date: new Date(data.date) }] }
+            : undefined,
+        },
+        include: { items: true, payments: true },
+      });
+
+      return updated;
+    }, {
+      maxWait: 15000,
+      timeout: 30000
+    });
+
+    res.json(updatedBill);
+  } catch (err) {
+    next(err);
+  }
+});
+
